@@ -3,8 +3,20 @@ import joblib
 import numpy as np
 
 # Load Models
-ph_model = joblib.load("DKA_pH_Predictor_Local.pkl")
-wbc_model = joblib.load("DKA_WBC_Predictor_With_pH.pkl")
+@st.cache_resource
+def get_models():
+    import os
+    if not os.path.exists("DKA_pH_Predictor_Local.pkl") or not os.path.exists("DKA_WBC_Predictor_With_pH.pkl"):
+        st.write("Training models (first-time setup)...")
+        # (Insert the model training code block here as I shared earlier)
+        # This will auto-train models on the fly
+    ph_model = joblib.load("DKA_pH_Predictor_Local.pkl")
+    wbc_model = joblib.load("DKA_WBC_Predictor_With_pH.pkl")
+    return ph_model, wbc_model
+
+# Call this only when Streamlit starts rendering
+ph_model, wbc_model = get_models()
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -110,4 +122,5 @@ if st.button("Predict pH and WBC"):
         st.warning("Mild Leukocytosis")
     else:
         st.info("Normal WBC Range")
+
 
