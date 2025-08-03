@@ -1,23 +1,4 @@
 import streamlit as st
-import joblib
-import numpy as np
-
-# Load Models
-@st.cache_resource
-def get_models():
-    import os
-    if not os.path.exists("DKA_pH_Predictor_Local.pkl") or not os.path.exists("DKA_WBC_Predictor_With_pH.pkl"):
-        st.write("Training models (first-time setup)...")
-        # (Insert the model training code block here as I shared earlier)
-        # This will auto-train models on the fly
-    ph_model = joblib.load("DKA_pH_Predictor_Local.pkl")
-    wbc_model = joblib.load("DKA_WBC_Predictor_With_pH.pkl")
-    return ph_model, wbc_model
-
-# Call this only when Streamlit starts rendering
-ph_model, wbc_model = get_models()
-
-import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
@@ -25,44 +6,44 @@ import os
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 
-# Auto-train models if not found
-if not os.path.exists("DKA_pH_Predictor_Local.pkl") or not os.path.exists("DKA_WBC_Predictor_With_pH.pkl"):
-    st.write("Training models... please wait (first-time setup)")
+@st.cache_resource
+def train_and_get_models():
+    # If models already exist, load them
+    if os.path.exists("DKA_pH_Predictor_Local.pkl") and os.path.exists("DKA_WBC_Predictor_With_pH.pkl"):
+        ph_model = joblib.load("DKA_pH_Predictor_Local.pkl")
+        wbc_model = joblib.load("DKA_WBC_Predictor_With_pH.pkl")
+        return ph_model, wbc_model
 
-    # Load dataset
+    # Else, Train them first
+    st.warning("Training models on first-time setup... please wait")
     df = pd.read_csv('DKA with BMI.csv')
 
-    # Common Features
+    # --- Train pH Model ---
     features = ['HGB_ALC_RESULT', 'PO2', 'PCO2', 'BASE_EXCESS', 'FIO2_VENOUS', 'O2_SAT_CALC_VENOUS',
                 'SODIUM', 'POTASSIUM', 'CHLORIDE', 'GLUCOSE', 'BUN', 'CREATININE', 'ANION_GAP', 'HC03',
                 'RED_BLOOD_CELL', 'HEMATOCRIT', 'MEAN_CELL_VOL', 'MEAN_CELL_HEMOGLOBIN',
                 'MEAN_CELL_HEMOGLOBIN_CONCENT', 'RDW_SD', 'MEAN_PLATELET_VOL', 'PLATELET', 'HEMOGLOBIN']
-
-    # --- Train pH Model ---
-    target_ph = 'PH'
-    df_ph = df[features + [target_ph]].apply(pd.to_numeric, errors='coerce').dropna()
+    df_ph = df[features + ['PH']].apply(pd.to_numeric, errors='coerce').dropna()
     X_ph = df_ph[features]
-    y_ph = df_ph[target_ph]
-    X_train_ph, X_test_ph, y_train_ph, y_test_ph = train_test_split(X_ph, y_ph, test_size=0.3, random_state=42)
+    y_ph = df_ph['PH']
     ph_model = RandomForestRegressor(n_estimators=100, random_state=42)
-    ph_model.fit(X_train_ph, y_train_ph)
+    ph_model.fit(X_ph, y_ph)
     joblib.dump(ph_model, 'DKA_pH_Predictor_Local.pkl')
 
     # --- Train WBC Model with pH ---
     features_wbc = ['PH'] + features
-    target_wbc = 'WHITE_BLOOD_CELL'
-    df_wbc = df[features_wbc + [target_wbc]].apply(pd.to_numeric, errors='coerce').dropna()
+    df_wbc = df[features_wbc + ['WHITE_BLOOD_CELL']].apply(pd.to_numeric, errors='coerce').dropna()
     X_wbc = df_wbc[features_wbc]
-    y_wbc = df_wbc[target_wbc]
-    X_train_wbc, X_test_wbc, y_train_wbc, y_test_wbc = train_test_split(X_wbc, y_wbc, test_size=0.3, random_state=42)
+    y_wbc = df_wbc['WHITE_BLOOD_CELL']
     wbc_model = RandomForestRegressor(n_estimators=100, random_state=42)
-    wbc_model.fit(X_train_wbc, y_train_wbc)
+    wbc_model.fit(X_wbc, y_wbc)
     joblib.dump(wbc_model, 'DKA_WBC_Predictor_With_pH.pkl')
 
-    st.success("Models trained successfully!")
-else:
-    ph_model = joblib.load("DKA_pH_Predictor_Local.pkl")
-    wbc_model = joblib.load("DKA_WBC_Predictor_With_pH.pkl")
+    st.success("Models trained and cached successfully!")
+    return ph_model, wbc_model
+
+# Load models (will train if not found)
+ph_model, wbc_model = train_and_get_models()
 
 st.title("DKA pH & WBC Prediction Tool")
 st.write("Input patient lab values to predict severity of acidosis (pH) and WBC count")
@@ -122,6 +103,3 @@ if st.button("Predict pH and WBC"):
         st.warning("Mild Leukocytosis")
     else:
         st.info("Normal WBC Range")
-
-
-
